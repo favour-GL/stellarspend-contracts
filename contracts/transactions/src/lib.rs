@@ -211,6 +211,11 @@ impl TransactionsContract {
     pub fn get_all_transactions(env: Env) -> Vec<Transaction> {
         get_all_transactions(&env)
     }
+
+    /// Get the total income from all transactions
+    pub fn get_total_income(env: Env) -> i128 {
+        storage::get_total_income(&env)
+    }
     
     /// Get a paginated subset of all transactions.
     ///
