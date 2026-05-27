@@ -8,6 +8,7 @@ mod events;
 mod reconciliation;
 mod storage;
 mod utils;
+mod fee_validation;
 mod validation;
 mod auth;
 
@@ -35,7 +36,8 @@ pub use crate::storage::{BatchFeeResult, DataKey, MAX_BATCH_SIZE, MAX_FEE_BPS};
 use crate::utils::format_amount;
 use crate::auth::require_admin;
 use crate::utils::compute_fee;
-use crate::validation::{validate_fee_bps_or_panic, validate_min_fee_or_panic, validate_max_fee_or_panic, validate_amount_positive_or_panic};
+use crate::fee_validation::validate_fee_percentage_bounds;
+use crate::validation::{validate_min_fee_or_panic, validate_max_fee_or_panic, validate_amount_positive_or_panic};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -79,9 +81,7 @@ impl FeeContract {
         if initial_cycle == 0 {
             panic_with_error!(&env, FeeContractError::InvalidConfig);
         }
-        if !validate_fee_bps_or_panic(&env, fee_bps) {
-            panic_with_error!(&env, FeeContractError::InvalidConfig);
-        }
+        validate_fee_percentage_bounds(&env, fee_bps);
 
         write_admin(&env, &admin);
         write_token(&env, &token);
@@ -207,7 +207,7 @@ impl FeeContract {
         require_admin(&env, &_admin);
         Self::require_unlocked(&env);
 
-        validate_fee_bps_or_panic(&env, fee_bps);
+        validate_fee_percentage_bounds(&env, fee_bps);
 
         write_fee_bps(&env, fee_bps);
         FeeEvents::fee_bps_updated(&env, fee_bps);
