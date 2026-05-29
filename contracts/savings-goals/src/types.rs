@@ -217,6 +217,8 @@ pub enum DataKey {
     GoalMilestonesPercent(u64),
     /// Total milestones achieved lifetime
     TotalMilestonesAchieved,
+    /// Maps (user, goal_name) -> goal_id for duplicate detection
+    GoalByName(Address, Symbol),
 }
 
 /// Error codes for goal validation and creation.
@@ -243,6 +245,8 @@ pub mod ErrorCode {
     pub const UNAUTHORIZED_USER: u32 = 8;
     /// Goal has already achieved this milestone
     pub const MILESTONE_ALREADY_ACHIEVED: u32 = 9;
+    /// Duplicate goal name for the same user
+    pub const DUPLICATE_GOAL_NAME: u32 = 11;
 }
 
 /// Events emitted by the savings goals contract.

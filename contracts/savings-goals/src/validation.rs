@@ -1,11 +1,20 @@
 //! Validation logic for savings goal requests.
 
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, Symbol};
 
 use crate::types::{
     DataKey, ErrorCode, MilestoneAchievementRequest, SavingsGoal, SavingsGoalRequest,
     MAX_GOAL_AMOUNT, MIN_GOAL_AMOUNT,
 };
+
+/// Checks whether the user already has a goal with the same name.
+/// Returns an error code if a duplicate is found.
+pub fn validate_goal_name_unique(env: &Env, user: &Address, goal_name: &Symbol) -> Result<(), u32> {
+    if env.storage().persistent().has(&DataKey::GoalByName(user.clone(), goal_name.clone())) {
+        return Err(ErrorCode::DUPLICATE_GOAL_NAME);
+    }
+    Ok(())
+}
 
 /// Validates a savings goal request.
 ///
@@ -307,5 +316,47 @@ mod tests {
         assert!(is_valid_initial_contribution(100_000_000, 100_000_000));
         assert!(!is_valid_initial_contribution(-1, 100_000_000));
         assert!(!is_valid_initial_contribution(100_000_001, 100_000_000));
+    }
+
+    #[test]
+    fn test_validate_goal_name_unique_no_duplicate() {
+        let env = Env::default();
+        let user = Address::generate(&env);
+        let name = symbol_short!("vacation");
+        // No goal exists yet, so should be OK
+        assert!(validate_goal_name_unique(&env, &user, &name).is_ok());
+    }
+
+    #[test]
+    fn test_validate_goal_name_unique_detects_duplicate() {
+        let env = Env::default();
+        let user = Address::generate(&env);
+        let name = symbol_short!("vacation");
+
+        // Simulate an existing goal with this name
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoalByName(user.clone(), name.clone()), &1u64);
+
+        assert_eq!(
+            validate_goal_name_unique(&env, &user, &name),
+            Err(ErrorCode::DUPLICATE_GOAL_NAME)
+        );
+    }
+
+    #[test]
+    fn test_validate_goal_name_unique_allows_same_name_different_user() {
+        let env = Env::default();
+        let user1 = Address::generate(&env);
+        let user2 = Address::generate(&env);
+        let name = symbol_short!("vacation");
+
+        // User1 has the name
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoalByName(user1.clone(), name.clone()), &1u64);
+
+        // User2 should still be able to use the same name
+        assert!(validate_goal_name_unique(&env, &user2, &name).is_ok());
     }
 }

@@ -32,7 +32,7 @@ pub use crate::types::{
     ErrorCode, GoalEvents, GoalResult, MilestoneAchievement, MilestoneAchievementRequest,
     MilestoneResult, SavingsGoal, SavingsGoalProgress, SavingsGoalRequest, MAX_BATCH_SIZE,
 };
-use crate::validation::{validate_goal_request, validate_milestone_request};
+use crate::validation::{validate_goal_name_unique, validate_goal_request, validate_milestone_request};
 
 /// Error codes for the savings goals contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -315,6 +315,14 @@ impl SavingsGoalsContract {
             // Validate the request
             match validate_goal_request(&env, &request) {
                 Ok(()) => {
+                    // Check for duplicate goal name for this user
+                    if let Err(error_code) = validate_goal_name_unique(&env, &request.user, &request.goal_name) {
+                        failed_count += 1;
+                        GoalEvents::goal_creation_failed(&env, batch_id, &request.user, error_code);
+                        results.push_back(GoalResult::Failure(request.user.clone(), error_code));
+                        continue;
+                    }
+
                     // Validation succeeded - create the goal
                     goal_id_counter += 1;
 
@@ -344,6 +352,10 @@ impl SavingsGoalsContract {
                     env.storage()
                         .persistent()
                         .set(&DataKey::Goal(goal_id_counter), &goal);
+                    // Store name-to-id mapping for duplicate detection
+                    env.storage()
+                        .persistent()
+                        .set(&DataKey::GoalByName(request.user.clone(), request.goal_name.clone()), &goal_id_counter);
                     // Emit milestone events for initial contribution
                     Self::check_and_emit_milestones(&env, goal_id_counter);
 
