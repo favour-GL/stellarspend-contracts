@@ -1042,3 +1042,64 @@ fn test_contribute_emits_milestone_events() {
     assert!(triggered.contains(&75));
     assert!(triggered.contains(&100));
 }
+
+// ==================== Snapshot Tests ====================
+
+#[test]
+fn test_record_and_get_goal_snapshots() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    let mut requests: Vec<SavingsGoalRequest> = Vec::new(&env);
+    requests.push_back(SavingsGoalRequest {
+        user: user.clone(),
+        goal_name: Symbol::new(&env, "snapshot_test"),
+        target_amount: 100_000_000,
+        deadline: env.ledger().sequence() as u64 + 1000,
+        initial_contribution: 10_000_000,
+        lock_duration_seconds: 0,
+    });
+    client.batch_set_savings_goals(&admin, &requests);
+
+    // Record first snapshot manually
+    client.record_goal_snapshot(&user, &1);
+
+    // Contribute
+    client.contribute_to_goal(&user, &1, &20_000_000);
+
+    // Record second snapshot
+    env.ledger().set_timestamp(env.ledger().timestamp() + 100);
+    client.record_goal_snapshot(&user, &1);
+
+    let snapshots = client.get_goal_snapshots(&1);
+    assert_eq!(snapshots.len(), 2);
+
+    let snap1 = snapshots.get(0).unwrap();
+    assert_eq!(snap1.goal_id, 1);
+    assert_eq!(snap1.amount, 10_000_000);
+
+    let snap2 = snapshots.get(1).unwrap();
+    assert_eq!(snap2.goal_id, 1);
+    assert_eq!(snap2.amount, 30_000_000);
+}
+
+#[test]
+#[should_panic]
+fn test_record_goal_snapshot_unauthorized() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
+
+    let mut requests: Vec<SavingsGoalRequest> = Vec::new(&env);
+    requests.push_back(SavingsGoalRequest {
+        user: user.clone(),
+        goal_name: Symbol::new(&env, "snapshot_test_auth"),
+        target_amount: 100_000_000,
+        deadline: env.ledger().sequence() as u64 + 1000,
+        initial_contribution: 10_000_000,
+        lock_duration_seconds: 0,
+    });
+    client.batch_set_savings_goals(&admin, &requests);
+
+    client.record_goal_snapshot(&unauthorized, &1);
+}

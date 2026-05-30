@@ -71,6 +71,18 @@ pub struct SavingsGoalProgress {
     pub is_complete: bool,
 }
 
+/// Represents a historical snapshot of a savings goal.
+#[derive(Clone, Debug)]
+#[contracttype]
+pub struct GoalSnapshot {
+    /// Associated goal ID
+    pub goal_id: u64,
+    /// Amount saved at the time of snapshot
+    pub amount: i128,
+    /// Ledger sequence when the snapshot was recorded
+    pub timestamp: u64,
+}
+
 /// Result of processing a single goal creation.
 #[derive(Clone, Debug)]
 #[contracttype]
@@ -223,6 +235,8 @@ pub enum DataKey {
     TotalMilestonesAchieved,
     /// Maps (user, goal_name) -> goal_id for duplicate detection
     GoalByName(Address, Symbol),
+    /// Snapshots for a goal (goal_id -> Vec<GoalSnapshot>)
+    GoalSnapshots(u64),
 }
 
 /// Error codes for goal validation and creation.
@@ -399,5 +413,12 @@ impl GoalEvents {
         let topics = (symbol_short!("goal"), symbol_short!("renamed"), goal_id);
         env.events()
             .publish(topics, (old_name.clone(), new_name.clone()));
+    }
+
+    /// Event emitted when a snapshot is successfully captured.
+    pub fn goal_snapshot_recorded(env: &Env, goal_id: u64, amount: i128, timestamp: u64) {
+        let topics = (symbol_short!("goal"), symbol_short!("snapshot"), goal_id);
+        env.events()
+            .publish(topics, (goal_id, amount, timestamp));
     }
 }

@@ -29,7 +29,7 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Symbol
 
 pub use crate::types::{
     BatchGoalMetrics, BatchGoalResult, BatchMilestoneMetrics, BatchMilestoneResult, DataKey,
-    ErrorCode, GoalEvents, GoalResult, MilestoneAchievement, MilestoneAchievementRequest,
+    ErrorCode, GoalEvents, GoalResult, GoalSnapshot, MilestoneAchievement, MilestoneAchievementRequest,
     MilestoneResult, SavingsGoal, SavingsGoalProgress, SavingsGoalRequest, MAX_BATCH_SIZE,
 };
 use crate::validation::{
@@ -797,6 +797,65 @@ impl SavingsGoalsContract {
         } else {
             (now - last_contributed_at) / interval_seconds
         }
+    }
+
+    /// Records a historical snapshot of the goal's current progress.
+    ///
+    /// The caller must be the goal owner. Emits an event on success.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The address recording the snapshot (must be goal owner)
+    /// * `goal_id` - The ID of the goal
+    pub fn record_goal_snapshot(env: Env, caller: Address, goal_id: u64) {
+        caller.require_auth();
+
+        let goal: SavingsGoal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Goal(goal_id))
+            .unwrap_or_else(|| panic_with_error!(&env, SavingsGoalError::GoalNotFound));
+
+        // Verify caller is the goal owner
+        if goal.user != caller {
+            panic_with_error!(&env, SavingsGoalError::Unauthorized);
+        }
+
+        let now = env.ledger().timestamp();
+        let snapshot = GoalSnapshot {
+            goal_id,
+            amount: goal.current_amount,
+            timestamp: now,
+        };
+
+        let mut snapshots: Vec<GoalSnapshot> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::GoalSnapshots(goal_id))
+            .unwrap_or(Vec::new(&env));
+        
+        snapshots.push_back(snapshot);
+        
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoalSnapshots(goal_id), &snapshots);
+
+        GoalEvents::goal_snapshot_recorded(&env, goal_id, goal.current_amount, now);
+    }
+
+    /// Retrieves all historical snapshots for a specific goal.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `goal_id` - The goal ID
+    ///
+    /// # Returns
+    /// * `Vec<GoalSnapshot>` - Vector of historical snapshots
+    pub fn get_goal_snapshots(env: Env, goal_id: u64) -> Vec<GoalSnapshot> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::GoalSnapshots(goal_id))
+            .unwrap_or(Vec::new(&env))
     }
 
     /// Returns the admin address.
