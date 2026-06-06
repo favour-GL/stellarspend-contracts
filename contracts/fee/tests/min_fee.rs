@@ -581,5 +581,4 @@ mod combined {
         assert_eq!(r2.stored_balance, 0);
         assert!(r2.is_reconciled);
     }
-
-  
+}
