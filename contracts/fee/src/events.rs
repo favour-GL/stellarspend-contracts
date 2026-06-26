@@ -49,7 +49,6 @@ pub struct FeeReleasedEvent {
     pub treasury: Address,
 }
 
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeDistributedEvent {
